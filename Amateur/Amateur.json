@@ -1,0 +1,11 @@
+{
+  "Author": "Plume",
+  "Name": "Amateur",
+  "Punchline": "Amateur punchline",
+  "Description": "Amateur description",
+  "ApplicableVersion": "any",
+  "Tags": [
+    "sample",
+     "plugin"
+  ]
+}
