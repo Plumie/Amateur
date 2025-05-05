@@ -9,7 +9,7 @@ public class ConfigWindow : Window, IDisposable
 {
     private Configuration Configuration;
 
-    public ConfigWindow(Plugin plugin) : base("Amateur config")
+    public ConfigWindow(Amateur amateur) : base("Amateur config")
     {
         Flags = ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoScrollbar |
                 ImGuiWindowFlags.NoScrollWithMouse;
@@ -17,7 +17,7 @@ public class ConfigWindow : Window, IDisposable
         Size = new Vector2(232, 90);
         SizeCondition = ImGuiCond.Always;
 
-        Configuration = plugin.Configuration;
+        Configuration = amateur.Configuration;
     }
 
     public void Dispose() { }
