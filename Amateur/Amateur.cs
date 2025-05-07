@@ -26,6 +26,7 @@ public sealed class Amateur : IDalamudPlugin
 
     public void Dispose()
     {
+        UIManager.Dispose();
         HookManager.Dispose();
     }
 }
