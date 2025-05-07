@@ -1,23 +1,20 @@
 using System;
 using System.Numerics;
-using Dalamud.Interface.Windowing;
 using Dalamud.Game;
+using Dalamud.Interface.Windowing;
 using ImGuiNET;
 
 namespace Amateur;
 
-public class ConfigurationUI : Window, IDisposable
+public class ConfigWindow : Window
 {
-    private Configuration Configuration;
-
-    public ConfigurationUI(Amateur amateur) : base("Amateur config")
+    public ConfigWindow() : base("Amateur Configuration")
     {
         Flags = ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoScrollbar |
                 ImGuiWindowFlags.NoScrollWithMouse;
 
         Size = new Vector2(232, 90);
         SizeCondition = ImGuiCond.Always;
-        Configuration = amateur.Configuration;
     }
 
     public override void PreDraw()
@@ -29,14 +26,14 @@ public class ConfigurationUI : Window, IDisposable
     {
         var languageValues = Enum.GetValues<ClientLanguage>();
         var languageNames = Enum.GetNames<ClientLanguage>();
-        var currentIndex = Array.IndexOf(languageValues, Configuration.Language);
+        var currentIndex = Array.IndexOf(languageValues, Amateur.Configuration.Language);
 
         if (ImGui.Combo("Language", ref currentIndex, languageNames, languageNames.Length))
         {
-            Configuration.Language = languageValues[currentIndex];
-            Configuration.Save();
+            Amateur.Configuration.Language = languageValues[currentIndex];
+            Amateur.Configuration.Save();
         }
     }
 
-    public void Dispose() { }
+    public void Dispose() {}
 }

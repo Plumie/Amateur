@@ -1,6 +1,6 @@
 using Dalamud.Configuration;
-using System;
 using Dalamud.Game;
+using System;
 
 namespace Amateur;
 
@@ -12,6 +12,6 @@ public class Configuration : IPluginConfiguration
 
     public void Save()
     {
-        Amateur.PluginInterface.SavePluginConfig(this);
+        Service.PluginInterface.SavePluginConfig(this);
     }
 }
