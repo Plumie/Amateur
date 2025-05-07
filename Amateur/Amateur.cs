@@ -1,112 +1,138 @@
 using System;
-using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using Dalamud.Game;
+using Dalamud.Game.ClientState.Objects;
+using Dalamud.Game.ClientState.Objects.Enums;
+using Dalamud.Game.ClientState.Objects.Types;
+using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Hooking;
-using Dalamud.IoC;
 using Dalamud.Interface.Windowing;
+using Dalamud.IoC;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
-using Dalamud.Game.ClientState.Objects;
-using Amateur.Windows;
 using Action = Lumina.Excel.Sheets.Action;
-using Dalamud.Game.ClientState.Objects.Types;
 
 namespace Amateur;
 
-public unsafe class Amateur : IDalamudPlugin
+public class Amateur : IDalamudPlugin
 {
-    private const string CommandName = "/amateur";
-    private const string CastBarSignature = "E8 ?? ?? ?? ?? 4C 8D 8F ?? ?? ?? ?? 4D 8B C6 48 8B D5";
+    public string Name => "Amateur";
 
-    [PluginService] internal static IDalamudPluginInterface PluginInterface { get; private set; } = null!;
-    [PluginService] internal static ICommandManager CommandManager { get; private set; } = null!;
-    [PluginService] internal static IClientState ClientState { get; private set; } = null!;
-    [PluginService] internal static IDataManager DataManager { get; private set; } = null!;
-    [PluginService] internal static IPluginLog Log { get; private set; } = null!;
-    [PluginService] internal static IFramework Framework { get; private set; } = null!;
-    [PluginService] internal static ITargetManager TargetManager { get; private set; } = null!;
-    [PluginService] internal static ISigScanner SigScanner { get; private set; } = null!;
-    [PluginService] internal static IGameInteropProvider GameInteropProvider { get; private set; } = null!;
-    [PluginService] internal static ITextureProvider TextureProvider { get; private set; } = null!;
+    [PluginService] public static IDalamudPluginInterface PluginInterface { get; set; } = null!;
+    [PluginService] private static ICommandManager CommandManager { get; set; } = null!;
+    [PluginService] private static IClientState ClientState { get; set; } = null!;
+    [PluginService] private static IDataManager DataManager { get; set; } = null!;
+    [PluginService] private static IPluginLog Log { get; set; } = null!;
+    [PluginService] private static IFramework Framework { get; set; } = null!;
+    [PluginService] private static ITargetManager TargetManager { get; set; } = null!;
+    [PluginService] private static ISigScanner SigScanner { get; set; } = null!;
+    [PluginService] private static IGameInteropProvider GameInteropProvider { get; set; } = null!;
+
+    public Configuration Configuration { get; }
 
     private readonly WindowSystem _windowSystem = new("Amateur");
-    private readonly ConfigWindow _configWindow;
+    private readonly ConfigurationUI _configurationUI;
 
-    public Configuration Configuration { get; init; }
-
+    private const string CASTBAR_SIGNATURE = "E8 ?? ?? ?? ?? 0F B7 43 ?? 66 3B C5";
     private delegate void SetCastBarDelegate(IntPtr thisPtr, IntPtr a2, IntPtr a3, IntPtr a4, char a5);
     private readonly Hook<SetCastBarDelegate> _setCastBarHook;
 
-    private readonly Dictionary<uint, string> _actionNames = new();
+    private const int BUFFER_SIZE = 256;
+    private IntPtr _customTextBuffer = IntPtr.Zero;
 
     public Amateur()
     {
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
 
-        _configWindow = new ConfigWindow(this);
-        _windowSystem.AddWindow(_configWindow);
+        _configurationUI = new ConfigurationUI(this);
+        _windowSystem.AddWindow(_configurationUI);
 
         PluginInterface.UiBuilder.Draw += DrawUI;
         PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUI;
 
-        var funcPtr = SigScanner.ScanText(CastBarSignature);
+        _customTextBuffer = Marshal.AllocHGlobal(BUFFER_SIZE);
+
+        var funcPtr = SigScanner.ScanText(CASTBAR_SIGNATURE);
         _setCastBarHook = GameInteropProvider.HookFromAddress<SetCastBarDelegate>(funcPtr, OnSetCastBar);
         _setCastBarHook.Enable();
-
-        PopulateActionCache();
     }
 
-    private void PopulateActionCache()
-    {
-        var actionSheet = DataManager.GetExcelSheet<Action>();
-        if (actionSheet == null)
-        {
-            throw new InvalidOperationException("Failed to load Action sheet.");
-        }
-
-        foreach (var action in actionSheet)
-        {
-            var actionName = action.Name.ToString();
-            if (string.IsNullOrWhiteSpace(actionName))
-                continue;
-
-            _actionNames[action.RowId] = actionName;
-        }
-    }
-
-    private void OnSetCastBar(nint thisPtr, nint a2, nint a3, nint a4, char a5)
+    private unsafe void OnSetCastBar(nint thisPtr, nint a2, nint a3, nint a4, char a5)
     {
         try
         {
-            if (TargetManager.Target is IBattleChara target)
-            {
-                var actionId = target.CastActionId;
+            if (TargetManager.Target is not IBattleChara target || target.ObjectKind != ObjectKind.BattleNpc)
+                goto Original;
 
-                if (_actionNames.TryGetValue(actionId, out var actionName) && !string.IsNullOrWhiteSpace(actionName))
-                {
-                    Log.Debug($"Casting: {actionName}");
-                }
+            var actionId = target.CastActionId;
+            var originalName = Translate(actionId, ClientState.ClientLanguage);
+            var translatedName = Translate(actionId, Configuration.Language);
+
+            if (originalName.TextValue == string.Empty || translatedName.TextValue == string.Empty)
+                goto Original;
+
+            string? currentText = Marshal.PtrToStringUTF8(a2);
+            if (currentText == null || currentText != originalName.TextValue)
+                goto Original;
+
+            var encoded = translatedName.Encode();
+            if (encoded.Length >= BUFFER_SIZE)
+            {
+                Log.Warning($"[SetCastBar] Translated name too long, truncating.");
+                Array.Resize(ref encoded, BUFFER_SIZE - 1);
             }
+
+            Marshal.Copy(encoded, 0, _customTextBuffer, encoded.Length);
+            Marshal.WriteByte(_customTextBuffer, encoded.Length, 0);
+
+            _setCastBarHook.Original(thisPtr, _customTextBuffer, a3, a4, a5);
+            return;
+
+        Original:
+            _setCastBarHook.Original(thisPtr, a2, a3, a4, a5);
         }
         catch (Exception ex)
         {
-            Log.Error($"Exception in SetCastBar detour: {ex}");
+            Log.Error($"[SetCastBar] Exception: {ex}");
+            _setCastBarHook.Original(thisPtr, a2, a3, a4, a5);
         }
-
-        _setCastBarHook.Original(thisPtr, a2, a3, a4, a5);
     }
 
-    public void ToggleConfigUI() => _configWindow.Toggle();
+    private static SeString Translate(uint actionId, ClientLanguage language)
+    {
+        var sheet = DataManager.GetExcelSheet<Action>(language);
+        if (sheet == null)
+        {
+            Log.Error($"[Translate] Failed to load Action sheet for language: {language}");
+            return SeString.Empty;
+        }
+
+        var action = sheet.GetRow(actionId);
+        if ((object)action == null)
+        {
+            Log.Warning($"[Translate] Action ID {actionId} not found for language: {language}");
+            return SeString.Empty;
+        }
+
+        return new SeString().Append(action.Name.ToString());
+    }
+
+    public void ToggleConfigUI() => _configurationUI.Toggle();
 
     private void DrawUI() => _windowSystem.Draw();
 
     public void Dispose()
     {
-        _windowSystem.RemoveAllWindows();
-        _configWindow.Dispose();
-        CommandManager.RemoveHandler(CommandName);
+        _setCastBarHook.Disable();
+        _setCastBarHook.Dispose();
 
-        _setCastBarHook?.Disable();
-        _setCastBarHook?.Dispose();
+        _windowSystem.RemoveAllWindows();
+        _configurationUI.Dispose();
+
+        if (_customTextBuffer != IntPtr.Zero)
+        {
+            Marshal.FreeHGlobal(_customTextBuffer);
+            _customTextBuffer = IntPtr.Zero;
+        }
     }
 }
