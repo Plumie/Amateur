@@ -4,7 +4,7 @@
   "Punchline": "Translates enemy cast names into a different language",
   "Description": "Amateur is a plugin that translates enemy cast names into a language different from your game client's.",
   "ApplicableVersion": "any",
-  "IconUrl": "https://raw.githubusercontent.com/Plumie/Dalamud.PraetoriumRoulette/main/Data/icon.png",
+  "IconUrl": "https://raw.githubusercontent.com/Plumie/Amateur/main/Data/icon.png",
   "Tags": [
      "plugin"
   ]
