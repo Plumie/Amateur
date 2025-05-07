@@ -33,6 +33,14 @@ public class ConfigWindow : Window
             Amateur.Configuration.Language = languageValues[currentIndex];
             Amateur.Configuration.Save();
         }
+
+        ImGui.Spacing();
+        ImGui.Separator();
+
+        string sourceLang = Service.ClientState.ClientLanguage.ToString();
+        string targetLang = Amateur.Configuration.Language.ToString();
+
+        ImGui.TextColored(new System.Numerics.Vector4(1f, 1f, 0.6f, 1f), $"{sourceLang} → {targetLang}");
     }
 
     public void Dispose() {}

@@ -3,9 +3,7 @@
   "Name": "Amateur",
   "Punchline": "Translates enemy cast names into a different language",
   "Description": "Amateur is a plugin that translates enemy cast names into a language different from your game client's.",
+  "InternalName": "DynamicBridge",
   "ApplicableVersion": "any",
-  "IconUrl": "https://raw.githubusercontent.com/Plumie/Amateur/main/Data/icon.png",
-  "Tags": [
-     "plugin"
-  ]
+  "DalamudApiLevel": 12
 }
